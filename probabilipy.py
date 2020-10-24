@@ -34,12 +34,17 @@ class RandomValueOperationError(Exception):
 class RandomValue:
     MAX_PROBABILITY = 1
     MIN_PROBABILITY = 0
+    OPSIGNS = None
 
     def __init__(self, probability_pairs: list, name='random value'):
         self.probability_pairs = probability_pairs
         self.validate()
         self.name = name
         self._size = len(probability_pairs)
+        RandomValue.OPSIGNS = {
+            RandomValue.__add__.__name__: '+',
+            RandomValue.__mul__.__name__: '*',
+        }
 
     def size(self):
         return self._size
@@ -74,6 +79,10 @@ class RandomValue:
     def __repr__(self):
         return f'{self.__class__.__name__}({self.probability_pairs}, "{self.name}")'
 
+    def get_op_sign(self, op: classmethod):
+        if op.__name__ in self.OPSIGNS:
+            return self.OPSIGNS[op.__name__]
+
     @staticmethod
     def _sum_distinct(pairs):
         first = itemgetter(0)
@@ -85,26 +94,31 @@ class RandomValue:
     def _eval(a: 'RandomValue',
               b: 'RandomValue',
               lx: 'lambda ax, bx: x',
-              lp: 'lambda ap, bp: p', ) -> 'RandomValue':
+              lp: 'lambda ap, bp: p', ):
         pairs = []
         for ax, ap in a.probability_pairs:
             for bx, bp in b.probability_pairs:
                 pairs.append((lx(ax, bx), lp(ap, bp)))
-        return RandomValue(RandomValue._sum_distinct(pairs))
+        return pairs
 
     @staticmethod
     def _oper(a: 'RandomValue',
               b: 'RandomValue',
               lx: 'lambda ax, bx: x',
               lp: 'lambda ap, bp: p',
-              operation) -> 'RandomValue':
+              operation: classmethod) -> 'RandomValue':
         if isinstance(b, RandomValue):
             pass
         elif isinstance(b, int):
             b = RVFactory.evenly_range(b, b + 1)
         else:
             raise RandomValueOperationError(a, b, operation)
-        return RandomValue._eval(a, b, lx, lp)
+        pairs = RandomValue._eval(a, b, lx, lp)
+        raw = RandomValue._sum_distinct(pairs)
+        return RandomValue(
+            raw,
+            name=f'{a.name} {a.get_op_sign(operation)} {b.name}'
+        )
 
     def __add__(self, other) -> 'RandomValue':
         lx = lambda ax, bx: (ax + bx)
@@ -117,17 +131,24 @@ class RandomValue:
     def __mul__(self, other) -> 'RandomValue':
         lx = lambda ax, bx: (ax * bx)
         lp = lambda ap, bp: (ap * bp)
-        return self._oper(self, other, lx, lp, self.__add__)
+        return self._oper(self, other, lx, lp, self.__mul__)
 
     def __rmul__(self, other):
         return self * other
 
 
 class RVFactory:
+    RV_NAME = 'Random Value from factory'
+
+    def __init__(self, name):
+        RVFactory.RV_NAME = name
+
     @staticmethod
     def range(probability, start, stop, step=1):
         return RandomValue(
-            [(i, probability) for i in range(start, stop, step)])
+            [(i, probability) for i in range(start, stop, step)],
+            name=RVFactory.RV_NAME
+        )
 
     @staticmethod
     def evenly_range(start, stop, step=1):
@@ -135,23 +156,34 @@ class RVFactory:
 
     @staticmethod
     def arrange(values: list, probabilities: list):
-        return RandomValue([(x, p) for (x, p) in zip(values, probabilities)])
+        assert len(values) == len(probabilities)
+        return RandomValue(
+            [(x, p) for (x, p) in zip(values, probabilities)],
+            name=RVFactory.RV_NAME
+        )
 
 
 def main():
-    ksi = RVFactory.evenly_range(1, 7)
+    ksi = RVFactory('ξ').evenly_range(1, 7)
     print(ksi.__repr__())
     print(ksi.__str__())
-    mu = RVFactory.arrange(
-        [0,     1],
-        [2/3,   1/3],
+    mu = RVFactory('μ').arrange(
+        [0, 1],
+        [2 / 3, 1 / 3],
     )
     print(mu.__repr__())
     print(mu.__str__())
-
-    print(2*ksi + mu + 3)
+    print(2 * ksi + mu + 3)
 
     print('.............................')
+    ksi = RVFactory('ξ').arrange(
+        [-1, 0, 1],
+        [1 / 3, 1 / 3, 1 / 3]
+    )
+    print(ksi)
+    print(ksi * ksi)
+    print(ksi * ksi * ksi)
+    print(ksi * ksi * ksi * ksi)
 
 
 if __name__ == '__main__':

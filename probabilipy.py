@@ -31,10 +31,19 @@ class RandomValueOperationError(Exception):
         super().__init__(self.message)
 
 
+class RandomValueCastError(Exception):
+    def __init__(self, other):
+        self.message = (
+            f'Cannot cast {other} of type {type(other)} to {type(RandomValue)}'
+        )
+        super().__init__(self.message)
+
+
 class RandomValue:
     MAX_PROBABILITY = 1
     MIN_PROBABILITY = 0
     OPSIGNS = None
+    SHOW_PARENTHESES = True
 
     def __init__(self, probability_pairs: list, name='random value'):
         self.probability_pairs = probability_pairs
@@ -56,16 +65,15 @@ class RandomValue:
     def check_prob_sum(self):
         s = sum(map(lambda p: p[1], self.probability_pairs))
         eps = 1e-7
-        if abs(s - self.MAX_PROBABILITY) > eps:
-            raise ProbabilityLackError(s, self.MAX_PROBABILITY)
+        assert abs(s - self.MAX_PROBABILITY) <= eps, \
+            ProbabilityLackError(s, self.MAX_PROBABILITY)
 
     def check_probs(self):
         for p in map(lambda p: p[1], self.probability_pairs):
-            if self.MIN_PROBABILITY <= p <= self.MAX_PROBABILITY:
-                pass
-            else:
-                raise TotalProbabilityRangeError(p, self.MIN_PROBABILITY,
-                                                 self.MAX_PROBABILITY)
+            assert self.MIN_PROBABILITY <= p <= self.MAX_PROBABILITY, \
+                TotalProbabilityRangeError(
+                    p, self.MIN_PROBABILITY, self.MAX_PROBABILITY
+                )
 
     def __str__(self):
         x = map(lambda _: _[0], self.probability_pairs)
@@ -102,23 +110,34 @@ class RandomValue:
         return pairs
 
     @staticmethod
+    def _try_cast(obj) -> 'RandomValue':
+        if isinstance(obj, RandomValue):
+            return obj
+        elif isinstance(obj, int):
+            return RVFactory(obj).evenly_range(obj, obj + 1)
+        else:
+            raise RandomValueCastError(obj)
+
+    @staticmethod
     def _oper(a: 'RandomValue',
               b: 'RandomValue',
               lx: 'lambda ax, bx: x',
               lp: 'lambda ap, bp: p',
               operation: classmethod) -> 'RandomValue':
-        if isinstance(b, RandomValue):
-            pass
-        elif isinstance(b, int):
-            b = RVFactory.evenly_range(b, b + 1)
-        else:
-            raise RandomValueOperationError(a, b, operation)
+        try:
+            a = RandomValue._try_cast(a)
+            b = RandomValue._try_cast(b)
+        except RandomValueCastError as e:
+            raise RandomValueOperationError(a, b, operation) from e
+
         pairs = RandomValue._eval(a, b, lx, lp)
         raw = RandomValue._sum_distinct(pairs)
-        return RandomValue(
-            raw,
-            name=f'{a.name} {a.get_op_sign(operation)} {b.name}'
-        )
+
+        name = f'{a.name} {a.get_op_sign(operation)} {b.name}'
+        if RandomValue.SHOW_PARENTHESES:
+            name = ''.join(['(', name, ')'])
+
+        return RandomValue(raw, name=name)
 
     def __add__(self, other) -> 'RandomValue':
         lx = lambda ax, bx: (ax + bx)
@@ -126,7 +145,9 @@ class RandomValue:
         return self._oper(self, other, lx, lp, self.__add__)
 
     def __radd__(self, other):
-        return self + other
+        lx = lambda ax, bx: (ax + bx)
+        lp = lambda ap, bp: (ap * bp)
+        return self._oper(other, self, lx, lp, self.__add__)
 
     def __mul__(self, other) -> 'RandomValue':
         lx = lambda ax, bx: (ax * bx)
@@ -134,7 +155,33 @@ class RandomValue:
         return self._oper(self, other, lx, lp, self.__mul__)
 
     def __rmul__(self, other):
-        return self * other
+        lx = lambda ax, bx: (ax * bx)
+        lp = lambda ap, bp: (ap * bp)
+        return self._oper(other, self, lx, lp, self.__mul__)
+
+    def _expected_value(self) -> int:
+        pass
+
+    def _covariance(self) -> int:
+        pass
+
+    def _statistical_dispersion(self) -> int:
+        pass
+
+
+def E(rv: RandomValue):
+    """Мат ожидание"""
+    return rv._expected_value()
+
+
+def D(rv: RandomValue):
+    """Дисперсия"""
+    return rv._covariance()
+
+
+def Cov(rv: RandomValue):
+    """Коваривация"""
+    return rv._covariance()
 
 
 class RVFactory:

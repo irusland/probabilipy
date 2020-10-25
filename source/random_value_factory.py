@@ -18,7 +18,7 @@ class RVFactory:
 
     @staticmethod
     def evenly_range(start, stop, step=1):
-        return RVFactory.range(1 / (stop - start), start, stop, step)
+        return RVFactory.range(Fraction(1, (stop - start)), start, stop, step)
 
     @staticmethod
     def arrange(values: list, probabilities: list):
@@ -29,7 +29,7 @@ class RVFactory:
         )
 
     @staticmethod
-    def fracrange(values: list, probabilities: list):
+    def fractrange(values: list, probabilities: list):
         pairs = []
         i = 0
         while i < len(values) * 2:

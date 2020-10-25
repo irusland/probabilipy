@@ -1,3 +1,4 @@
+from fractions import Fraction
 from itertools import groupby
 from operator import itemgetter
 
@@ -19,6 +20,7 @@ class RandomValue:
         self._size = len(probability_pairs)
         RandomValue.OPSIGNS = {
             RandomValue.__add__.__name__: '+',
+            RandomValue.__sub__.__name__: '-',
             RandomValue.__mul__.__name__: '*',
             RandomValue.__pow__.__name__: '**',
         }
@@ -85,6 +87,11 @@ class RandomValue:
         elif isinstance(obj, int):
             return random_value_factory.RVFactory(obj).evenly_range(
                 obj, obj + 1)
+        elif isinstance(obj, Fraction):
+            return random_value_factory.RVFactory(obj).arrange(
+                [obj],
+                [1],
+            )
         else:
             raise errors.RandomValueCastError(obj)
 
@@ -120,20 +127,24 @@ class RandomValue:
         return ax + bx
 
     @staticmethod
+    def _values_sub(ax, bx):
+        return ax - bx
+
+    @staticmethod
     def _probs_mul(ap, bp):
         return ap * bp
 
     def __add__(self, other) -> 'RandomValue':
-        return self._oper(self, other, self._values_add, self._probs_mul, self.__add__)
+        return self._oper(
+            self, other, self._values_add, self._probs_mul, self.__add__)
 
-    def __radd__(self, other) -> 'RandomValue':
-        return self._oper(other, self, self._values_add, self._probs_mul, self.__add__)
+    def __sub__(self, other) -> 'RandomValue':
+        return self._oper(
+            self, other, self._values_sub, self._probs_mul, self.__sub__)
 
     def __mul__(self, other) -> 'RandomValue':
-        return self._oper(self, other, self._values_mul, self._probs_mul, self.__mul__)
-
-    def __rmul__(self, other) -> 'RandomValue':
-        return self._oper(other, self, self._values_mul, self._probs_mul, self.__mul__)
+        return self._oper(
+            self, other, self._values_mul, self._probs_mul, self.__mul__)
 
     def __pow__(self, power, modulo=None) -> 'RandomValue':
         assert modulo is None, NotImplementedError
@@ -148,3 +159,11 @@ class RandomValue:
             name = ''.join(['(', name, ')'])
         rv.name = name
         return rv
+
+    def __radd__(self, other) -> 'RandomValue':
+        return self._oper(
+            other, self, self._values_add, self._probs_mul, self.__add__)
+
+    def __rmul__(self, other) -> 'RandomValue':
+        return self._oper(
+            other, self, self._values_mul, self._probs_mul, self.__mul__)
